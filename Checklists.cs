@@ -11,7 +11,7 @@ using System.Linq;
 
 public class TrainerModeChecklistsController : MonoBehaviour
 {
-    //Change to not be homestring in final
+    //Connect to internal database if in editor otherwise connect to production database.
     private readonly string connString = Application.isEditor ? trainerMode.TrainerModeNamespace.homeConnString :
         trainerMode.TrainerModeNamespace.connString;
 
@@ -70,6 +70,7 @@ public class TrainerModeChecklistsController : MonoBehaviour
     //METHODS
     private void Awake()
     {
+        //When the scene begins, load data from the server and fill in dropdowns with information.
         DataLoad();
         for (int i = 0; i < jobDataTable.Rows.Count; i++)
         {
@@ -85,11 +86,13 @@ public class TrainerModeChecklistsController : MonoBehaviour
 
     private void DataLoad()
     {
+        //Make sure datatables are empty
         employeeDataTable.Clear();
         jobDataTable.Clear();
         trainerDataTable.Clear();
         trainingHistoryDataTable.Clear();
-
+        
+        //Attempt to connect to the server. If its you can't, log the error.
         using (SqlConnection sqlconn = new SqlConnection(connString))
         {
             try
@@ -105,6 +108,7 @@ public class TrainerModeChecklistsController : MonoBehaviour
                 connectionErrorText.text = e.ToString();
                 return;
             }
+            //Fill datatables with corresponding information
             using (SqlCommand cmd = sqlconn.CreateCommand())
             {
                 cmd.CommandText = trainerMode.TrainerModeNamespace.employeeDataTableQuery;
@@ -132,12 +136,14 @@ public class TrainerModeChecklistsController : MonoBehaviour
             sqlconn.Close();
         }
     }
+    
+    //After relevant objects are loaded from the Awake() method, the Start() method runs
     private void Start()
     {
         DataLoad();
         trainedOrIntroduced.gameObject.SetActive(false);
-
-        //Connection Buttons to Methods
+       
+        //Make buttons listen for methods
         departmentDropdown.onValueChanged.AddListener(DropdownPopulate);
         jobDropdown.onValueChanged.AddListener(delegate { ChecklistPopulate(); });
         employeeDropdown.onValueChanged.AddListener(delegate { ChecklistPopulate(); });
@@ -146,6 +152,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
         beginButton.onClick.AddListener(CreateChecklists);
         serverUpdateRetryButton.onClick.AddListener(ChecklistUpdate);
     }
+    
+    //When the department is chosen, fill in the appropriate dropdowns with jobs, employees, and trainers in that department
     private void DropdownPopulate(int a)
     {
         if (PlayerPrefs.GetInt("Connection") == 0)
@@ -203,7 +211,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
             trainerDropdown.AddOptions(currentTrainerList);
         }
     }
-
+    
+    //Create the checklist when the go button is hit
     private void ChecklistPopulate()
     {
         //Do not run if connection did not work
@@ -224,7 +233,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
         StartCoroutine(BeginButtonInteractable());
         trainedOrIntroduced.gameObject.SetActive(false);
     }
-
+    
+    //Make the begin button interactable on the next frame if all relevant fields are filled out
     IEnumerator BeginButtonInteractable()
     {
         yield return new WaitForFixedUpdate();
@@ -238,12 +248,17 @@ public class TrainerModeChecklistsController : MonoBehaviour
             beginButton.interactable = false;
         }
     }
-
+    
+    //Instantiate the checklists
     private void CreateChecklists()
     {
         beginButton.interactable = false;
+        
+        //Clear current name containers
         currentTaskNameList.Clear();
         currentTaskList.Clear();
+        
+        //Loop through rows in the job table and add them if they are in the department
         for (int i = 0; i < jobDataTable.Rows.Count; i++)
         {
             if (jobDataTable.Rows[i]["Training_Job_Name"].ToString() == jobDropdown.options[jobDropdown.value].text && jobDataTable.Rows[i]["Requirement_Type_ID"].ToString() == "1")
@@ -263,6 +278,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
         currentEmployee = int.Parse(employeeDropdown.options[employeeDropdown.value].text);
         currentTrainer = int.Parse(trainerDropdown.options[trainerDropdown.value].text);
 
+        //For each checklist, check only the last time they have been checked the last time then check the box if they were,
+        //leave it unchecked if not
         trainingHistoryDataTable.Columns["Training_Date"].DataType = Type.GetType("System.DateTime");
         trainingHistoryDataTable.DefaultView.Sort = "Training_Date DESC";
         DataRow[] dr = trainingHistoryDataTable.Select($"Trainee = '{currentEmployee.ToString()}' and Training_Job_Name = '{jobDropdown.options[jobDropdown.value].text}' and Requirement_Type_ID = '1'","Training_Date DESC");
@@ -299,7 +316,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
                 TrainedBoolListFiller(false,false);
             }
         }
-
+        
+        //Instantiate the checklist based on the previous information
         for (int i = 0; i < currentTaskList.Count; i++)
         {
             clone = Instantiate(togglePrefab, new Vector3(140, 1368 + (i * -125), 0), Quaternion.identity).transform;
@@ -360,7 +378,8 @@ public class TrainerModeChecklistsController : MonoBehaviour
         yield return new WaitForFixedUpdate();
         scrollbar.value = 1;
     }
-
+    
+    //When the checkmarks are clicked, update the list to reflect the changes
     private void TrainedBoolUpdate(bool t)
     {
         for (int i = 0; i < checklistList.transform.childCount; i++)
@@ -392,6 +411,7 @@ public class TrainerModeChecklistsController : MonoBehaviour
         }
     }
 
+    //When "update server" is clicked, save the information to the server
     private void ChecklistUpdate()
     {
         //If dropdown fields are incomplete do not update sql table
@@ -464,6 +484,7 @@ public class TrainerModeChecklistsController : MonoBehaviour
         }
     }
 
+    //Helper function for make "successful update" text fade away
     IEnumerator UpdateText()
     {
         successfulUpdateText.color = new Color(.21f, .92f, .14f, 1);
